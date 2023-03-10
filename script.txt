@@ -1,0 +1,62 @@
+En primer lugar, creamos el namespace donde procederemos a guardar nuestras tablas. Hemos
+escogido como nombre una combinación de nuestros usuarios:
+
+create_namespace 'airdata_425'
+
+Podemos comprobar que se ha creado correctamente
+
+list_namespace 'airdata_425'
+
+### EJERCICIO 1 ###
+Detalle de aeropuertos: dado un código de aeropuerto se deben obtener todos sus atributos, con posibilidad de proyectar atributos específicos.
+
+En este caso, dado que la consulta más eficiente es mediante rowkey, hemos decidido utilizar el código 
+del aeropuerto como clave, aprovechando que se trata de un campo único y unívoco para cada uno de los
+aeropuertos y que se encuentra ya establecido como una columna dentro del fichero airports.csv.
+
+Aunque el resto de atributos podrían organizarse en múltiples column families diferentes, hemos decidido
+emplear una única column family. Esto se debe a que el número de qualifiers diferentes que vayan a estar 
+presentes dentro de los datos es conocido y constante y probablemente nos facilite la carga de datos.
+
+Para crear la tabla utilizamos el comando:
+
+create 'airdata_425:airports', 'info'
+
+Comprobamos que se ha creado correctamente:
+
+list_namespace_tables 'airdata_425'
+
+Una vez creada la tabla procedemos a realizar la carga de datos desde airports.csv. Para ello, utilizaremos
+el código de Python provisto en el script airports.py. Con el fin de poder ejecutar de manera limpia los scripts
+desde el nodo Edge01 y evitar conflictos de dependencias hemos creado un entorno en conda mediante el comando:
+
+/opt/miniconda3/bin/conda create -n nosql_mbd25 python=3.8
+
+Para poder ejecutar este entorno es necesario realizar un paso previo de inicialización de conda mediante:
+
+/opt/miniconda3/bin/conda
+
+Tras cerrar la terminal para poder aplicar los cambios, volvemos a conectarnos al Edge01 y observamos que en la 
+consola aparece activado el entorno base de conda. Podemos ahora activar nuestro entorno personal mediante:
+
+conda activate nosql_mbd25
+
+Una vez hecho esto, procedemos a instalar la librería de happybase:
+
+pip install happybase
+
+Finalmente, ejecutamos el script airports.py para poder realizar la carga de datos a la tabla recién creada. 
+Podemos ahora meternos en la shell de hbase (hbase shell) y ejecutar un scan de la tabla:
+
+scan 'airdata_425:airports', {LIMIT => 3}
+
+Con esto podemos comprobar que la estructura de datos que hemos especificado en la carga se mantiene en la 
+tabla. Para asegurarnos de que todos los registros han sido cargados, ejecutamos un count:
+
+count 'airdata_425:airports'
+
+Podemos ver que el número de rows (3376) coincide con el número de líneas que obtenemos si hacemos un wc -l 
+sobre el fichero de airports.csv, lo que nos indica que todos los datos se han cargado en nuestra tabla.
+
+
+

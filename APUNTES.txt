@@ -1,0 +1,3 @@
+tenesmo que resolver las 3 primeras preguntas. Esto nos dirá la estructura de tablas que tenemos que usar. No intentemos atacarlo todo de golpe, trabajar con una pequeña muestra con un volumne pequeño de datos. El primer reto es conectarse a HBase con la shell de python. Los omandos basicos son conectarse, obtener una tabla con un get y luego hacer consultas get/put. LO que no esta es la lectura de ficheros txt y meterlos en un pandas. 
+
+tenemos que guardar datos para poder acceder a una columna en particular. 
