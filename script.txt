@@ -58,5 +58,83 @@ count 'airdata_425:airports'
 Podemos ver que el número de rows (3376) coincide con el número de líneas que obtenemos si hacemos un wc -l 
 sobre el fichero de airports.csv, lo que nos indica que todos los datos se han cargado en nuestra tabla.
 
+### EJERCICIO 1 ###
+Consulta de vuelos por mes o día: Posibilidad de obtener los vuelos de aun día o mes específico (YYYYMMDD o YYYYMM)
+Como detalle de información se deben obtener siempre todos los siguientes datos: hora de salida, hora de llegada, número de vuelo, origen, destino, número de aeronave y distancia recorrida.
+
+En este caso, queremos realizar una consulta de vuelos por días o mes específico, por lo que tenemos que idear una clave 
+que sea combinación de las columnas que indican esta información en los csv de carga. Sin embargo, podemos ver que para un
+mismo día puede haber varios vuelos diferentes, por lo que no podemos utilizar únicamente esta información para la clave, puesto
+que nos encontraríamos con registros repetidos que no corresponden a los mismos vuelos. Podemos comprobar que esto es cierto con 
+el siguiente comando en la terminal del Edge01:
+
+cut -d ',' -f 1,2,3,10 2007.csv | grep '^2007,1,1,[0-9]*$' | wc -l
+
+Este comando nos permite inspeccionar el fichero de vuelos de 2007.csv seleccionando únicamente las columnas 1,2,3 y 10 (correspondientes
+al año, mes, día del mes y número de vuelo, respectivamente). En este caso, queremos buscar el número de entradas en el año 2007 para el 
+mes de enero y el día 1. Para ello, empleamos comando cut de linux, donde mediante el parámetro -d le especificamos el delimitador del csv
+(en este caso, comas), así como las columnas que queremos (mediante el parámetro -f). Sobre el output de este comando, 
+realizamos una búsqueda grep para quedarnos con todas las entradas que correspondan al día 1 de enero de 2007, en cualquier número de vuelo. 
+Finalmente, realizamos un wc del número de líneas del output del comando, resultando en un total de 19563, lo que nos confirma que no podemos
+utilizar únicamente la fecha como rowkey.
+
+Una potencial aproximación para intentar resolver este problema es comprobar si en cada día el ID del vuelo es un identificador único. Esto 
+podría ayudarnos, ya que lo único que tendríamos que hacer es utilizar la información de la fecha como prefijo para la rowkey y emplear el 
+campo correspondiente al número de vuelo para hacer que el registro sea único. Para comprobar nuestra hipótesis, podemos utilizar un comando 
+similar al anterior, pero indicando específicamente el número de vuelo (en este caso hemos escogido el vuelo 2891, pero podría ser cualquier
+otro):
+
+cut -d ',' -f 1,2,3,10 2007.csv | grep '^2007,1,1,2891$' | wc -l
+
+Cuando ejecutamos este comando vemos que el número de entradas para ese vuelo en esa fecha específica es de 3, lo que nos indica que es posible
+que dicho vuelo tenga entradas repetidas. Para poder ver cuál es exactamente la diferencia entre dichas entradas necesitamos el resto de columnas
+del fichero para ese día y vuelo específico. El comando de filtrado a emplear es el siguiente:
+
+egrep '^2007,1,1,[0-9,]*([A-Z]){2},2891' 2007.csv
+
+Con este comando podemos encontrar todas las entradas correspondientes al vuelo 2891 en el día 1 de enero de 2007. Podemos comprobar que aparecen 
+dos entradas diferentes, puesto que se trata de un vuelo que fue desde Sacramento (SMF) hasta Ontario (ONT) y, tras una escala, se desplazó desde
+Ontario hasta Las Vegas (LAS). La inspección más detallada de las horas de aterrizaje de la primera entrada (13:41) y la hora de despegue de la
+segunda entrada (14:08) parecen corroborar nuestra hipótesis.
+
+Con esta información en mente, se propone el diseño de una nueva clave que incluya la siguiente información:
+
+- Año del vuelo (YYYY)
+- Mes del vuelo (MM)
+- Día del mes (DD)
+- Número de vuelo (FlightNum)
+- Origen
+- destino
+
+Esto nos permitirá tener entradas bien diferenciadas para cada uno de los vuelos sin que haya solapamientos. El potencial problema a tener en cuenta
+es que la longitud de la clave compuesta resultante es bastante elevado, puesto que se tiene que incluir información de varios campos para conseguir
+una clave única, lo que supone un consumo adicional de espacio de escritura en disco. Adicionalmente, los resultados se devolverán ordenados en función
+de estos campos: primero por año, después por mes, después por día, etc., por lo que si quisiéramos aplicar una ordenación diferente tendríamos que 
+diseñar una clave distinta. Sin embargo, no tenemos información adicional de cómo debe ser el orden de los resultados devueltos, por lo que utilizaremos 
+esta aproximación.
+
+Una vez definido el tipo de clave a emplear debemos decidir el número de column families a emplear para poder almacenar la información de las entradas.
+Como en este caso se nos indica que siempre se desea acceder a todos los campos, lo más óptimo es emplear una única column family, de modo que se pueda 
+realizar una búsqueda por column family de forma directa para obtener la información de todas las columnas.
+
+Procedemos ahora a crear la nueva tabla dentro del namespace previamente definido:
+
+create 'airdata_425:flights', 'info'
+
+Comprobamos que se ha creado correctamente:
+
+list_namespace_tables 'airdata_425'
+
+A continuación, procedemos a ejecutar el script flights.py, de manera similar a como lo hicimos en el ejercicio 1 (activando el entorno de conda previo 
+a realizar la ejecución del script desde el nodo Edge01). Realizamos las comprobaciones oportunas para ver que los datos se han insertado correctamente
+en nuestra tabla:
+
+scan 'airdata_425:flights', {LIMIT => 3}
+
+count 'airdata_425:flights'
 
 
+
+Podemos probar a recuperar la información de un registro usando el prefijo de rowkey para comprobar que podemos acceder bien a la tabla:
+
+get 
