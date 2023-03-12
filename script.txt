@@ -30,7 +30,7 @@ Una vez creada la tabla procedemos a realizar la carga de datos desde airports.c
 el código de Python provisto en el script airports.py. Con el fin de poder ejecutar de manera limpia los scripts
 desde el nodo Edge01 y evitar conflictos de dependencias hemos creado un entorno en conda mediante el comando:
 
-/opt/miniconda3/bin/conda create -n nosql_mbd25 python=3.8
+/opt/miniconda3/bin/conda create -n env_name python=3.8
 
 Para poder ejecutar este entorno es necesario realizar un paso previo de inicialización de conda mediante:
 
@@ -39,7 +39,7 @@ Para poder ejecutar este entorno es necesario realizar un paso previo de inicial
 Tras cerrar la terminal para poder aplicar los cambios, volvemos a conectarnos al Edge01 y observamos que en la 
 consola aparece activado el entorno base de conda. Podemos ahora activar nuestro entorno personal mediante:
 
-conda activate nosql_mbd25
+conda activate env_name
 
 Una vez hecho esto, procedemos a instalar la librería de happybase:
 
@@ -58,7 +58,7 @@ count 'airdata_425:airports'
 Podemos ver que el número de rows (3376) coincide con el número de líneas que obtenemos si hacemos un wc -l 
 sobre el fichero de airports.csv, lo que nos indica que todos los datos se han cargado en nuestra tabla.
 
-### EJERCICIO 1 ###
+### EJERCICIO 2 ###
 Consulta de vuelos por mes o día: Posibilidad de obtener los vuelos de aun día o mes específico (YYYYMMDD o YYYYMM)
 Como detalle de información se deben obtener siempre todos los siguientes datos: hora de salida, hora de llegada, número de vuelo, origen, destino, número de aeronave y distancia recorrida.
 
@@ -68,9 +68,9 @@ mismo día puede haber varios vuelos diferentes, por lo que no podemos utilizar 
 que nos encontraríamos con registros repetidos que no corresponden a los mismos vuelos. Podemos comprobar que esto es cierto con 
 el siguiente comando en la terminal del Edge01:
 
-cut -d ',' -f 1,2,3,10 2007.csv | grep '^2007,1,1,[0-9]*$' | wc -l
+cut -d ',' -f 1,2,3,10 /tmp/nosql/airData/2007.csv | grep '^2007,1,1,[0-9]*$' | wc -l
 
-Este comando nos permite inspeccionar el fichero de vuelos de 2007.csv seleccionando únicamente las columnas 1,2,3 y 10 (correspondientes
+Este comando nos permite inspeccionar el fichero de vuelos de /tmp/nosql/airData/2007.csv seleccionando únicamente las columnas 1,2,3 y 10 (correspondientes
 al año, mes, día del mes y número de vuelo, respectivamente). En este caso, queremos buscar el número de entradas en el año 2007 para el 
 mes de enero y el día 1. Para ello, empleamos comando cut de linux, donde mediante el parámetro -d le especificamos el delimitador del csv
 (en este caso, comas), así como las columnas que queremos (mediante el parámetro -f). Sobre el output de este comando, 
@@ -84,13 +84,13 @@ campo correspondiente al número de vuelo para hacer que el registro sea único.
 similar al anterior, pero indicando específicamente el número de vuelo (en este caso hemos escogido el vuelo 2891, pero podría ser cualquier
 otro):
 
-cut -d ',' -f 1,2,3,10 2007.csv | grep '^2007,1,1,2891$' | wc -l
+cut -d ',' -f 1,2,3,10 /tmp/nosql/airData/2007.csv | grep '^2007,1,1,2891$' | wc -l
 
 Cuando ejecutamos este comando vemos que el número de entradas para ese vuelo en esa fecha específica es de 3, lo que nos indica que es posible
 que dicho vuelo tenga entradas repetidas. Para poder ver cuál es exactamente la diferencia entre dichas entradas necesitamos el resto de columnas
 del fichero para ese día y vuelo específico. El comando de filtrado a emplear es el siguiente:
 
-egrep '^2007,1,1,[0-9,]*([A-Z]){2},2891' 2007.csv
+egrep '^2007,1,1,[0-9,]*([A-Z]){2},2891' /tmp/nosql/airData/2007.csv
 
 Con este comando podemos encontrar todas las entradas correspondientes al vuelo 2891 en el día 1 de enero de 2007. Podemos comprobar que aparecen 
 dos entradas diferentes, puesto que se trata de un vuelo que fue desde Sacramento (SMF) hasta Ontario (ONT) y, tras una escala, se desplazó desde
@@ -102,9 +102,10 @@ Con esta información en mente, se propone el diseño de una nueva clave que inc
 - Año del vuelo (YYYY)
 - Mes del vuelo (MM)
 - Día del mes (DD)
+- Compañía (UniqueCarrier)
 - Número de vuelo (FlightNum)
 - Origen
-- destino
+- Destino
 
 Esto nos permitirá tener entradas bien diferenciadas para cada uno de los vuelos sin que haya solapamientos. El potencial problema a tener en cuenta
 es que la longitud de la clave compuesta resultante es bastante elevado, puesto que se tiene que incluir información de varios campos para conseguir
