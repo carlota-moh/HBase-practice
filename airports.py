@@ -1,16 +1,17 @@
 # /opt/miniconda3/bin/conda init
 # conda activate nosql_mbd25
-#!pip install happybase
+# !pip install happybase
 
 import happybase
 import csv
+
 def getConn():
     return happybase.Connection(host='192.168.80.33')
 
-#Si al conectar da el error -> thriftpy2.transport.base.TTransportException: TTransportException(type=1, message="Could not connect to ('0.0.0.0', 9090)")
-#ejecutar en una terminal: hbase thrift start -p 9090
+# Si al conectar da el error -> thriftpy2.transport.base.TTransportException: TTransportException(type=1, message="Could not connect to ('0.0.0.0', 9090)")
+# ejecutar en una terminal: hbase thrift start -p 9090
 
-#funcion auxiliar para convertir a bytes lo que queremos almacenar en HBase
+# Function to convert to bytes the data to be stored in HBase
 def to_bytes(value):
   return bytes(str(value), 'utf-8')
 
@@ -35,4 +36,4 @@ with open(airports_path, 'r') as f:
             to_bytes('info:lat'): to_bytes(row['lat']),
     })
         
-print("loaded airports with %d entries" % i)
+print("Loaded airports with %d entries" % i)
