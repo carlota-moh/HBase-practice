@@ -1,5 +1,4 @@
-En primer lugar, creamos el namespace donde procederemos a guardar nuestras tablas. Hemos
-escogido como nombre una combinación de nuestros usuarios:
+En primer lugar, creamos el namespace donde procederemos a guardar nuestras tablas. Hemos escogido como nombre una combinación de nuestros usuarios:
 
 create_namespace 'airdata_425'
 
@@ -10,13 +9,9 @@ list_namespace 'airdata_425'
 ### EJERCICIO 1 ###
 Detalle de aeropuertos: dado un código de aeropuerto se deben obtener todos sus atributos, con posibilidad de proyectar atributos específicos.
 
-En este caso, dado que la consulta más eficiente es mediante rowkey, hemos decidido utilizar el código 
-del aeropuerto como clave, aprovechando que se trata de un campo único y unívoco para cada uno de los
-aeropuertos y que se encuentra ya establecido como una columna dentro del fichero airports.csv.
+En este caso, dado que la consulta más eficiente es mediante rowkey, hemos decidido utilizar el código del aeropuerto como clave, aprovechando que se trata de un campo único y unívoco para cada uno de los aeropuertos y que se encuentra ya establecido como una columna dentro del fichero airports.csv.
 
-Aunque el resto de atributos podrían organizarse en múltiples column families diferentes, hemos decidido
-emplear una única column family. Esto se debe a que el número de qualifiers diferentes que vayan a estar 
-presentes dentro de los datos es conocido y constante y probablemente nos facilite la carga de datos.
+Aunque el resto de atributos podrían organizarse en múltiples column families diferentes, hemos decidido emplear una única column family. Esto se debe a que el número de qualifiers diferentes que vayan a estar presentes dentro de los datos es conocido y constante y probablemente nos facilite la carga de datos.
 
 Para crear la tabla utilizamos el comando:
 
@@ -26,9 +21,7 @@ Comprobamos que se ha creado correctamente:
 
 list_namespace_tables 'airdata_425'
 
-Una vez creada la tabla procedemos a realizar la carga de datos desde airports.csv. Para ello, utilizaremos
-el código de Python provisto en el script airports.py. Con el fin de poder ejecutar de manera limpia los scripts
-desde el nodo Edge01 y evitar conflictos de dependencias hemos creado un entorno en conda mediante el comando:
+Una vez creada la tabla procedemos a realizar la carga de datos desde airports.csv. Para ello, utilizaremos el código de Python provisto en el script airports.py. Con el fin de poder ejecutar de manera limpia los scripts desde el nodo Edge01 y evitar conflictos de dependencias hemos creado un entorno en conda mediante el comando:
 
 /opt/miniconda3/bin/conda create -n env_name python=3.8
 
@@ -36,8 +29,7 @@ Para poder ejecutar este entorno es necesario realizar un paso previo de inicial
 
 /opt/miniconda3/bin/conda
 
-Tras cerrar la terminal para poder aplicar los cambios, volvemos a conectarnos al Edge01 y observamos que en la 
-consola aparece activado el entorno base de conda. Podemos ahora activar nuestro entorno personal mediante:
+Tras cerrar la terminal para poder aplicar los cambios, volvemos a conectarnos al Edge01 y observamos que en la consola aparece activado el entorno base de conda. Podemos ahora activar nuestro entorno personal mediante:
 
 conda activate env_name
 
@@ -45,57 +37,34 @@ Una vez hecho esto, procedemos a instalar la librería de happybase:
 
 pip install happybase
 
-Finalmente, ejecutamos el script airports.py para poder realizar la carga de datos a la tabla recién creada. 
-Podemos ahora meternos en la shell de hbase (hbase shell) y ejecutar un scan de la tabla:
+Finalmente, ejecutamos el script airports.py para poder realizar la carga de datos a la tabla recién creada. Podemos ahora meternos en la shell de hbase (hbase shell) y ejecutar un scan de la tabla:
 
 scan 'airdata_425:airports', {LIMIT => 3}
 
-Con esto podemos comprobar que la estructura de datos que hemos especificado en la carga se mantiene en la 
-tabla. Para asegurarnos de que todos los registros han sido cargados, ejecutamos un count:
+Con esto podemos comprobar que la estructura de datos que hemos especificado en la carga se mantiene en la tabla. Para asegurarnos de que todos los registros han sido cargados, ejecutamos un count:
 
 count 'airdata_425:airports'
 
-Podemos ver que el número de rows (3376) coincide con el número de líneas que obtenemos si hacemos un wc -l 
-sobre el fichero de airports.csv, lo que nos indica que todos los datos se han cargado en nuestra tabla.
+Podemos ver que el número de rows (3376) coincide con el número de líneas que obtenemos si hacemos un wc -l sobre el fichero de airports.csv, lo que nos indica que todos los datos se han cargado en nuestra tabla.
 
 ### EJERCICIO 2 ###
-Consulta de vuelos por mes o día: Posibilidad de obtener los vuelos de aun día o mes específico (YYYYMMDD o YYYYMM)
-Como detalle de información se deben obtener siempre todos los siguientes datos: hora de salida, hora de llegada, número de vuelo, origen, destino, número de aeronave y distancia recorrida.
+Consulta de vuelos por mes o día: Posibilidad de obtener los vuelos de aun día o mes específico (YYYYMMDD o YYYYMM). Como detalle de información se deben obtener siempre todos los siguientes datos: hora de salida, hora de llegada, número de vuelo, origen, destino, número de aeronave y distancia recorrida.
 
-En este caso, queremos realizar una consulta de vuelos por días o mes específico, por lo que tenemos que idear una clave 
-que sea combinación de las columnas que indican esta información en los csv de carga. Sin embargo, podemos ver que para un
-mismo día puede haber varios vuelos diferentes, por lo que no podemos utilizar únicamente esta información para la clave, puesto
-que nos encontraríamos con registros repetidos que no corresponden a los mismos vuelos. Podemos comprobar que esto es cierto con 
-el siguiente comando en la terminal del Edge01:
+En este caso, queremos realizar una consulta de vuelos por días o mes específico, por lo que tenemos que idear una clave que sea combinación de las columnas que indican esta información en los csv de carga. Sin embargo, podemos ver que para un mismo día puede haber varios vuelos diferentes, por lo que no podemos utilizar únicamente esta información para la clave, puesto que nos encontraríamos con registros repetidos que no corresponden a los mismos vuelos. Podemos comprobar que esto es cierto con  el siguiente comando en la terminal del Edge01:
 
 cut -d ',' -f 1,2,3,10 /tmp/nosql/airData/2007.csv | grep '^2007,1,1,[0-9]*$' | wc -l
 
-Este comando nos permite inspeccionar el fichero de vuelos de /tmp/nosql/airData/2007.csv seleccionando únicamente las columnas 1,2,3 y 10 (correspondientes
-al año, mes, día del mes y número de vuelo, respectivamente). En este caso, queremos buscar el número de entradas en el año 2007 para el 
-mes de enero y el día 1. Para ello, empleamos comando cut de linux, donde mediante el parámetro -d le especificamos el delimitador del csv
-(en este caso, comas), así como las columnas que queremos (mediante el parámetro -f). Sobre el output de este comando, 
-realizamos una búsqueda grep para quedarnos con todas las entradas que correspondan al día 1 de enero de 2007, en cualquier número de vuelo. 
-Finalmente, realizamos un wc del número de líneas del output del comando, resultando en un total de 19563, lo que nos confirma que no podemos
-utilizar únicamente la fecha como rowkey.
+Este comando nos permite inspeccionar el fichero de vuelos de /tmp/nosql/airData/2007.csv seleccionando únicamente las columnas 1,2,3 y 10 (correspondientes al año, mes, día del mes y número de vuelo, respectivamente). En este caso, queremos buscar el número de entradas en el año 2007 para el  mes de enero y el día 1. Para ello, empleamos comando cut de linux, donde mediante el parámetro -d le especificamos el delimitador del csv (en este caso, comas), así como las columnas que queremos (mediante el parámetro -f). Sobre el output de este comando,  realizamos una búsqueda grep para quedarnos con todas las entradas que correspondan al día 1 de enero de 2007, en cualquier número de vuelo.  Finalmente, realizamos un wc del número de líneas del output del comando, resultando en un total de 19563, lo que nos confirma que no podemos utilizar únicamente la fecha como rowkey.
 
-Una potencial aproximación para intentar resolver este problema es comprobar si en cada día el ID del vuelo es un identificador único. Esto 
-podría ayudarnos, ya que lo único que tendríamos que hacer es utilizar la información de la fecha como prefijo para la rowkey y emplear el 
-campo correspondiente al número de vuelo para hacer que el registro sea único. Para comprobar nuestra hipótesis, podemos utilizar un comando 
-similar al anterior, pero indicando específicamente el número de vuelo (en este caso hemos escogido el vuelo 2891, pero podría ser cualquier
-otro):
+Una potencial aproximación para intentar resolver este problema es comprobar si en cada día el ID del vuelo es un identificador único. Esto podría ayudarnos, ya que lo único que tendríamos que hacer es utilizar la información de la fecha como prefijo para la rowkey y emplear el campo correspondiente al número de vuelo para hacer que el registro sea único. Para comprobar nuestra hipótesis, podemos utilizar un comando similar al anterior, pero indicando específicamente el número de vuelo (en este caso hemos escogido el vuelo 2891, pero podría ser cualquier otro):
 
 cut -d ',' -f 1,2,3,10 /tmp/nosql/airData/2007.csv | grep '^2007,1,1,2891$' | wc -l
 
-Cuando ejecutamos este comando vemos que el número de entradas para ese vuelo en esa fecha específica es de 3, lo que nos indica que es posible
-que dicho vuelo tenga entradas repetidas. Para poder ver cuál es exactamente la diferencia entre dichas entradas necesitamos el resto de columnas
-del fichero para ese día y vuelo específico. El comando de filtrado a emplear es el siguiente:
+Cuando ejecutamos este comando vemos que el número de entradas para ese vuelo en esa fecha específica es de 3, lo que nos indica que es posible que dicho vuelo tenga entradas repetidas. Para poder ver cuál es exactamente la diferencia entre dichas entradas necesitamos el resto de columnas del fichero para ese día y vuelo específico. El comando de filtrado a emplear es el siguiente:
 
 egrep '^2007,1,1,[0-9,]*([A-Z]){2},2891' /tmp/nosql/airData/2007.csv
 
-Con este comando podemos encontrar todas las entradas correspondientes al vuelo 2891 en el día 1 de enero de 2007. Podemos comprobar que aparecen 
-dos entradas diferentes, puesto que se trata de un vuelo que fue desde Sacramento (SMF) hasta Ontario (ONT) y, tras una escala, se desplazó desde
-Ontario hasta Las Vegas (LAS). La inspección más detallada de las horas de aterrizaje de la primera entrada (13:41) y la hora de despegue de la
-segunda entrada (14:08) parecen corroborar nuestra hipótesis.
+Con este comando podemos encontrar todas las entradas correspondientes al vuelo 2891 en el día 1 de enero de 2007. Podemos comprobar que aparecen dos entradas diferentes, puesto que se trata de un vuelo que fue desde Sacramento (SMF) hasta Ontario (ONT) y, tras una escala, se desplazó desde Ontario hasta Las Vegas (LAS). La inspección más detallada de las horas de aterrizaje de la primera entrada (13:41) y la hora de despegue de la segunda entrada (14:08) parecen corroborar nuestra hipótesis.
 
 Con esta información en mente, se propone el diseño de una nueva clave que incluya la siguiente información:
 
@@ -107,16 +76,9 @@ Con esta información en mente, se propone el diseño de una nueva clave que inc
 - Origen
 - Destino
 
-Esto nos permitirá tener entradas bien diferenciadas para cada uno de los vuelos sin que haya solapamientos. El potencial problema a tener en cuenta
-es que la longitud de la clave compuesta resultante es bastante elevado, puesto que se tiene que incluir información de varios campos para conseguir
-una clave única, lo que supone un consumo adicional de espacio de escritura en disco. Adicionalmente, los resultados se devolverán ordenados en función
-de estos campos: primero por año, después por mes, después por día, etc., por lo que si quisiéramos aplicar una ordenación diferente tendríamos que 
-diseñar una clave distinta. Sin embargo, no tenemos información adicional de cómo debe ser el orden de los resultados devueltos, por lo que utilizaremos 
-esta aproximación.
+Esto nos permitirá tener entradas bien diferenciadas para cada uno de los vuelos sin que haya solapamientos. El potencial problema a tener en cuenta es que la longitud de la clave compuesta resultante es bastante elevado, puesto que se tiene que incluir información de varios campos para conseguir una clave única, lo que supone un consumo adicional de espacio de escritura en disco. Adicionalmente, los resultados se devolverán ordenados en función de estos campos: primero por año, después por mes, después por día, etc., por lo que si quisiéramos aplicar una ordenación diferente tendríamos que diseñar una clave distinta. Sin embargo, no tenemos información adicional de cómo debe ser el orden de los resultados devueltos, por lo que utilizaremos esta aproximación.
 
-Una vez definido el tipo de clave a emplear debemos decidir el número de column families a emplear para poder almacenar la información de las entradas.
-Como en este caso se nos indica que siempre se desea acceder a todos los campos, lo más óptimo es emplear una única column family, de modo que se pueda 
-realizar una búsqueda por column family de forma directa para obtener la información de todas las columnas.
+Una vez definido el tipo de clave a emplear debemos decidir el número de column families a emplear para poder almacenar la información de las entradas. Como en este caso se nos indica que siempre se desea acceder a todos los campos, lo más óptimo es emplear una única column family, de modo que se pueda realizar una búsqueda por column family de forma directa para obtener la información de todas las columnas.
 
 Procedemos ahora a crear la nueva tabla dentro del namespace previamente definido:
 
@@ -126,16 +88,40 @@ Comprobamos que se ha creado correctamente:
 
 list_namespace_tables 'airdata_425'
 
-A continuación, procedemos a ejecutar el script flights.py, de manera similar a como lo hicimos en el ejercicio 1 (activando el entorno de conda previo 
-a realizar la ejecución del script desde el nodo Edge01). Realizamos las comprobaciones oportunas para ver que los datos se han insertado correctamente
-en nuestra tabla:
+Antes de proceder con la carga completa de datos, hacemos una pequeña prueba con un número limitado de datos (10000 registros de cada csv), ejecutando el script flights_mini.py y realizamos las comprobaciones necesarias:
+
+A continuación, procedemos a ejecutar el script flights.py, de manera similar a como lo hicimos en el ejercicio 1 (activando el entorno de conda previo a realizar la ejecución del script desde el nodo Edge01). En teste caso, como el número de registros es mucho más elevado, utilizamos un método de carga en batch.
 
 scan 'airdata_425:flights', {LIMIT => 3}
 
 count 'airdata_425:flights'
 
+Una vez hemos comprobado que se han insertado correctamente los datos, deshabilitamos la tabla y la eliminamos, volviéndola a crearla para cargar los datos de todos los registros:
 
+disable 'airdata_425:flights', {LIMIT => 3}
 
-Podemos probar a recuperar la información de un registro usando el prefijo de rowkey para comprobar que podemos acceder bien a la tabla:
+drop 'airdata_425:flights'
 
-get 
+create 'airdata_425:flights'
+
+A continuación, se procede a ejecutar el script `flights.py`, de manera similar a como lo hicimos en el ejercicio 1 (activando el entorno de `conda` previo a realizar la ejecución del script desde el nodo `Edge01`). Tras ello, se realizan las comprobaciones oportunas para ver que los datos se han insertado correctamente en nuestra tabla:
+
+Realizamos las comprobaciones oportunas para ver que los datos se han insertado correctamente en nuestra tabla:
+
+scan 'airdata_425:flights', {LIMIT => 3}
+
+count 'airdata_425:flights', {INTERVAL => 100000, CACHE => 10000 }
+
+En este caso, utilizamos un método de conteo en batch para poder obtener el número de registros de manera rápida. Obtenemos un total de 9842397. Para poder comprobar si el número de registros insertados se corresponde con el número de registros a cargar, podemos emplear los siguientes comandos:
+
+cut -d ',' -f 1,2,3,9,10,17,18 /tmp/nosql/airData/2007.csv | uniq | wc -l
+cut -d ',' -f 1,2,3,9,10,17,18 /tmp/nosql/airData/2008.csv | uniq | wc -l
+
+Es importante tener en cuenta que con estos comandos estamos contando la primera línea del fichero (header), por lo que al hacer la suma debemos restarle 2. También es importante remarcar el uso del 'uniq' en los comandos anteriores, que nos permite descartar del conteo aquellos registros que se encuentren repetidos en los csv.
+
+Finalmente, comprobamos que se pueden realizar las búsquedas sobre la tabla como se requiere en las especificaciones:
+
+scan 'airdata_425:flights', { ROWPREFIXFILTER => '20070102' }
+scan 'airdata_425:flights', { ROWPREFIXFILTER => '200801' }
+
+Con esto podemos comprobar que es posible recuperar los registros utilizando tanto el prefijo YYYYMM como YYYYMMDD.
