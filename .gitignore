@@ -1,2 +1,6 @@
 # env
-venv_hbase
+venv_hbase 
+
+# dummy scripts
+dummy_csv.csv
+dummy_example.py
