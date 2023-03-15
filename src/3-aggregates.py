@@ -5,34 +5,37 @@ import pandas as pd
 # Generate column containing row key
 def generate_rowkey(df):
     df["rowKey"] = df["Origin"] + df["Dest"]
+    return df
 
-# generate_rowkey(flights_2007)
-# generate_rowkey(flights_2008)
-
-# Group by key
+# Calculate average air time by route
 def calculate_avg_duration(df):
-    return df.groupby(by="rowKey").agg(avg_duration=("AirTime", "mean"))
-
-# avg_duration_2007 = calculate_avg_duration(flights_2007)
-# avg_duration_2008 = calculate_avg_duration(flights_2008)
-
-# print(avg_duration_2007.head())
-# print(avg_duration_2008.head())
+    df_avg_duration = df.groupby(by="rowKey").agg(Avg_duration=("AirTime", "mean")).reset_index()
+    return df_avg_duration
 
 # Calculate average delay for each airline and route
 def calculate_avg_delay(df):
-    return df.groupby(by=["rowKey", "UniqueCarrier"]).agg(avg_delay_dep=("DepDelay", "mean"), avg_delay_arr=("ArrDelay", "mean"))
+    df_avg_delay = df.groupby(by=["rowKey", "UniqueCarrier"]).agg(
+        Avg_delay_dep=("DepDelay", "mean"), 
+        Avg_delay_arr=("ArrDelay", "mean")
+        ).reset_index()
+    return df_avg_delay
 
-def sort_by_freq(df, col):
-    df_count = df.groupby(by="count")
-    df_count.sort_values(by=col, ascending=False, inplace=True)
-    return df_count
+# Get airlines with higher number of flights per route
+def sort_by_freq(df):
+    df_n_flights = df.groupby(by=["rowKey", "UniqueCarrier"]).agg(
+        N_flights=("UniqueCarrier", "count")
+        ).reset_index()
+    df_n_flights.sort_values(by=["rowKey", "N_flights"], ascending=[True, False], inplace=True)
+    return df_n_flights
 
-# avg_delay_2007 = calculate_avg_delay(flights_2007)
-# avg_delay_2008 = calculate_avg_delay(flights_2008)
-
-# print(avg_delay_2007.head())
-# print(avg_delay_2008.head())
+# Get most used airplane by UniqueCarrier
+def get_most_used_airplane(df):
+    df_airplane = df.groupby(by=["rowKey", "UniqueCarrier", "TailNum"]).agg(
+        N_flights_airplane=("UniqueCarrier", "count")
+        ).reset_index()
+    df_airplane.sort_values(by=["rowKey", "UniqueCarrier", "N_flights_airplane"], ascending=[True, True, False], inplace=True)
+    df_airplane = df_airplane.groupby(by=["rowKey", "UniqueCarrier"]).first().reset_index()
+    return df_airplane
 
 # Files with flights data
 data_dir = os.path.join("/tmp", "nosql", "airData")
@@ -42,12 +45,31 @@ file_format = ".csv"
 # Get batches of size specified
 batch_size = 100000
 
-# load data into pandas
-chunksize = 1000000
-flights_2007 = pd.read_csv('/tmp/nosql/airData/2007.csv', sep=',', nrows=chunksize)
-flights_2008 = pd.read_csv('/tmp/nosql/airData/2008.csv', sep=',', nrows=chunksize)
-
+columns = [
+    "Origin",
+    "Dest",
+    "AirTime",
+    "UniqueCarrier",
+    "DepDelay",
+    "ArrDelay",
+    "TailNum"
+]
 
 for year in years:
     filepath = os.path.join(data_dir, year + file_format)
-    load_csv_to_hbase(table=flights, filepath=filepath, columns=columns, batch_size=batch_size)
+
+    # Get aggregates
+    data = pd.read_csv(filepath, sep=',', usecols=columns)
+    df = generate_rowkey(data)
+    df_avg_duration = calculate_avg_duration(df)
+    df_avg_delay = calculate_avg_delay(df)
+    df_n_flights = sort_by_freq(df)
+    df_airplane = get_most_used_airplane(df)
+
+    # JOINS
+    df_final = df_avg_delay.merge(df_avg_duration, how="left", on="rowKey")
+    df_final = df_final.merge(df_n_flights, how="left", on=["rowKey", "UniqueCarrier"])
+    # This df has different number of rows (2 less), and I do not know why yet 
+    df_final = df_final.merge(df_airplane, how="left", on=["rowKey", "UniqueCarrier"]) 
+    print(df_final.shape)
+    print(df_final.head())
