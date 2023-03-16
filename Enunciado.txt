@@ -22,7 +22,7 @@ El modelo de datos en HBase debe permitir resolver las consultas 1. 2 y 3:
 5 ¿De qué maneras se puede optimizar la carga de datos?
 
 Entrega - Se debe entregar en un zip: 
-	1- Scripts de creación de tablas en HBase
+	1- Scripts de creación de tablas en HBase (COMANDOS DE HBASE)
 	2- Documento descriptivo del modelo de datos diseñado en HBase
 	3- Problemas y retos que surgieron durante la práctica.
 	4- Scripts de python utilizados para la carga de datos, la documentación del código es importante.
