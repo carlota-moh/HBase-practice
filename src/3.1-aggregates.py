@@ -51,7 +51,7 @@ def insert_df(table, df):
         column_carrier = row.UniqueCarrier
         column_global = "AvgRouteDuration"
         table.put(
-            to_bytes(row.rowkey), 
+            to_bytes(row.rowKey), 
                 {
                     to_bytes(f"carrier:{column_carrier}"): to_bytes(row.JSON),
                     to_bytes(f"route:{column_global}"): to_bytes(row.Avg_duration)
@@ -65,8 +65,7 @@ def load_df_to_hbase(table, df):
         json = {
             "AvgDelayDep": row.Avg_delay_dep,
             "AvgDelayArr": row.Avg_delay_arr,
-            "FlightNum": row.FlightNum,
-            "Nroutes": row.Dest,
+            "Nroutes": row.N_routes,
             "TailNum": row.TailNum,
             "NroutesAirplane": row.N_routes_airplane 
         }
