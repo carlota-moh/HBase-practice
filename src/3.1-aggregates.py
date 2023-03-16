@@ -111,22 +111,27 @@ columns = [
 # Get connection with specified namespace and table
 routes = getConn(ip).table(f"{namespace}:{table}")
 
+data = pd.DataFrame(columns=columns)
+
 for year in years:
     filepath = os.path.join(data_dir, year + file_format)
-
     # Get aggregates
-    data = pd.read_csv(filepath, sep=',', usecols=columns)
-    df = generate_rowkey(data)
-    df_avg_duration = calculate_avg_duration(df)
-    df_avg_delay = calculate_avg_delay(df)
-    df_n_routes = sort_by_freq(df)
-    df_airplane = get_most_used_airplane(df)
+    data_year = pd.read_csv(filepath, sep=',', usecols=columns)
+    data = pd.concat([data, data_year], axis=0)
 
-    # JOINS
-    df_final = df_avg_delay.merge(df_avg_duration, how="left", on="rowKey")
-    df_final = df_final.merge(df_n_routes, how="left", on=["rowKey", "UniqueCarrier"])
-    # This df has different number of rows (2 less), and I do not know why yet 
-    df_final = df_final.merge(df_airplane, how="left", on=["rowKey", "UniqueCarrier"]) 
-    print(df_final.shape)
-    print(df_final.head())
-    load_df_to_hbase(table=routes, df=df_final)
+df = generate_rowkey(data)
+df_avg_duration = calculate_avg_duration(df)
+df_avg_delay = calculate_avg_delay(df)
+df_n_routes = sort_by_freq(df)
+df_airplane = get_most_used_airplane(df)
+
+# JOINS
+df_final = df_avg_delay.merge(df_avg_duration, how="left", on="rowKey")
+df_final = df_final.merge(df_n_routes, how="left", on=["rowKey", "UniqueCarrier"])
+# This df has different number of rows (2 less), and I do not know why yet 
+df_final = df_final.merge(df_airplane, how="left", on=["rowKey", "UniqueCarrier"])
+# Sort by N_route
+df_final.sort_values(by=["rowKey", "N_routes"], ascending=[True, False], inplace=True)
+print(df_final.shape)
+print(df_final.head())
+# load_df_to_hbase(table=routes, df=df_final)
