@@ -60,7 +60,7 @@ def insert_batch(table, df, batch_size):
             batch.put(
                 to_bytes(row.rowkey), 
                     {
-                        to_bytes(f"flight:{column_name}"): to_bytes(row.JSON),
+                        to_bytes(f"F:{column_name}"): to_bytes(row.JSON),
                         }
                     )
 
@@ -68,12 +68,12 @@ def insert_batch(table, df, batch_size):
 def load_csv_to_hbase(table, filepath, columns, batch_size):
     """
     Loads CSV in batches as a DataFrame. Then creates two new columns (Year and JSON), 
-    which will be used to insert information into an HBase.
+    which will be used to insert information into an HBase table.
 
     Args:
     ----------
     table : 
-        HBase table table where the information needs to be inserted.
+        HBase table where the information needs to be inserted.
     filepath: str
         filepath where the CSV file is stored.
     columns: list(str)
@@ -122,6 +122,9 @@ def load_csv_to_hbase(table, filepath, columns, batch_size):
         # Insert data into HBase
         insert_batch(table=table, df=df, batch_size=batch_size)
 
+###################################################################################################
+# DEFINE VARIABLES
+###################################################################################################
 
 # IP address of server where HBase is configured
 ip = "192.168.80.33"
@@ -155,6 +158,10 @@ columns = [
     "TailNum",
     "Distance"
     ]
+
+###################################################################################################
+# LOAD CSV FILES AND INSERT DATA INTO HBASE
+###################################################################################################
 
 # Iterate through each file and insert information into HBase
 for year in years:
