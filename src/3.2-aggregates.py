@@ -124,7 +124,9 @@ def get_most_used_airplane(df):
     """
     Given a DataFrame, groups by the rowKey, UniqueCarrier and TailNum columns and calculates the 
     number of flights for each group. It also sorts the information by rowKey, UniqueCarrier and number 
-    of flights in ascending, ascending and descending order respectively.
+    of flights in ascending, ascending and descending order respectively. Finally, it groups the information 
+    by rowKey and UniqueCarrier and gets the first observation, which corresponds to the airplane with more 
+    fligths for that rowKey and UniqueCarrier.
 
     Args:
     ----------
@@ -142,27 +144,75 @@ def get_most_used_airplane(df):
     df_airplane = df_airplane.groupby(by=["rowKey", "UniqueCarrier"]).first().reset_index()
     return df_airplane
 
-def format_number(number, n_digits=5):
+def format_number(number : int, n_digits : int = 5):
+    """
+    Given a number, add the neccesary zeros at the left in order to 
+    get a string with the number of digits desired.
+
+    Args:
+    ----------
+    number : int
+        Input number.
+    n_digits : int
+        Number total digits the number must have.
+
+    Returns:
+    ----------
+    n : str
+        Number introduces as input, with the neccesary zeros 
+        at the left in order to have the desired lenght.
+    """
     len_number = len(str(number))
     n = "0"*(n_digits-len_number) + str(number)
     return n
 
+# Inserts information into HBase
 def insert_df(table, df):
+    """
+    Inserts information from a DataFrame into an HBase table.
+
+    Args:
+    ----------
+    table : 
+        HBase table where the information needs to be inserted.
+    df: pd.DataFrame
+        DataFrame which contains the information to be inserted into HBase.
+
+    Returns:
+    ----------
+        None
+    """
     for row in df.itertuples():
         # Get number with binaries
-        n_routes = format_number(row.N_routes)
-        column_carrier = n_routes
+        rank = format_number(row.Rank)
         # column_carrier = row.UniqueCarrier
         column_global = "99999"
         table.put(
             to_bytes(row.rowKey), 
                 {
-                    to_bytes(f"C:{column_carrier}"): to_bytes(row.JSON),
+                    to_bytes(f"C:{rank}"): to_bytes(row.JSON),
                     to_bytes(f"C:{column_global}"): to_bytes(row.Route_avg_duration)
                     }
                 )
 
+# Create DataFrame with data formatted properly to be inserted into HBase
 def load_df_to_hbase(table, df):
+    """
+    Given a DataFrame, creates two new columns (JSON and Route_avg_duration), 
+    which will be used to insert information into an HBase table.
+
+    Args:
+    ----------
+    table : 
+        HBase table table where the information needs to be inserted.
+    df: pd.DataFrame
+        DataFrame with data to be inserted into HBase.
+    columns: list(str)
+
+    Returns:
+    ----------
+        None
+    """
     count = 0
     airlines_info = []
     routes_avg_duration = []
@@ -171,7 +221,7 @@ def load_df_to_hbase(table, df):
             "UniqueCarrier": row.UniqueCarrier,
             "AvgDelayDep": row.Avg_delay_dep,
             "AvgDelayArr": row.Avg_delay_arr,
-            # "Nroutes": row.N_routes,
+            "Nroutes": row.N_routes,
             "TailNum": row.TailNum,
             "NroutesAirplane": row.N_routes_airplane 
         }
@@ -186,18 +236,15 @@ def load_df_to_hbase(table, df):
     df["JSON"] = airlines_info
     df["Route_avg_duration"] = routes_avg_duration
 
-    # Console message
-    count += len(df)
-    if (count % 10**6) == 0:
-        print(f"{count}")
-
     # Insert data into HBase
     insert_df(table=table, df=df)
 
 
+###################################################################################################
+# DEFINE VARIABLES
+###################################################################################################
 
-
-# Files with routes data
+# Files with flights data
 data_dir = os.path.join("/tmp", "nosql", "airData")
 years = ["2007", "2008"]
 file_format = ".csv"
@@ -209,6 +256,7 @@ namespace = "airdata_425"
 # Table name in HBase
 table = "routes"
 
+# Columns to be used (therefore, we load what is only neccesary)
 columns = [
     "Origin",
     "Dest",
@@ -219,32 +267,53 @@ columns = [
     "TailNum"
 ]
 
-###########################################################################
-
 # Get connection with specified namespace and table
 routes = getConn(ip).table(f"{namespace}:{table}")
 
+###################################################################################################
+# LOAD CSV FILES
+###################################################################################################
+
+# Create empty DataFrame with the columns of interest
 data = pd.DataFrame(columns=columns)
 
+# Ierate through each file and concat it to the DataFrame already created
 for year in years:
     filepath = os.path.join(data_dir, year + file_format)
     # Get aggregates
     data_year = pd.read_csv(filepath, sep=',', usecols=columns)
     data = pd.concat([data, data_year], axis=0)
 
+###################################################################################################
+# GET AGGREGATES FROM THE DATA
+###################################################################################################
+
+# Create rowKey column
 df = generate_rowkey(data, "rowKey", "Origin", "Dest")
+# Get Average Duration
 df_avg_duration = calculate_avg_duration(df)
+# Get Average Departure and Arrival Delay
 df_avg_delay = calculate_avg_delay(df)
+# Sorts airlines in the same route by flights in descending order
 df_n_routes = sort_by_freq(df)
+# Get most used airplane by each route and airline combination
 df_airplane = get_most_used_airplane(df)
 
-# JOINS
+###################################################################################################
+# GENERATE DATAFRAME BY APLLYING JOINS TO INSERT IN HBASE
+###################################################################################################
+
+# APPLY JOINS
 df_final = df_avg_delay.merge(df_avg_duration, how="left", on="rowKey")
 df_final = df_final.merge(df_n_routes, how="left", on=["rowKey", "UniqueCarrier"])
-# This df has different number of rows (2 less), and I do not know why yet 
+# This df has different number of rows (2 less)
 df_final = df_final.merge(df_airplane, how="left", on=["rowKey", "UniqueCarrier"])
-# Sort by N_route
+# Sort by N_route and get ranking by higher number of flights
 df_final.sort_values(by=["rowKey", "N_routes"], ascending=[True, False], inplace=True)
-print(df_final.shape)
-print(df_final.head())
-# load_df_to_hbase(table=routes, df=df_final)
+df_final["Rank"] = df_final.groupby("rowKey").cumcount(ascending=True) + 1
+
+###################################################################################################
+# INSERT DATA INTO HBASE
+###################################################################################################
+
+load_df_to_hbase(table=routes, df=df_final)
