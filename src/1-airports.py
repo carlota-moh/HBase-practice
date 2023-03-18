@@ -100,6 +100,10 @@ problematic_rows = [
     3122
 ]
 
+###################################################################################################
+# LOAD DATA AND INSERT IT INTO HBASE
+###################################################################################################
+
 with open(filepath, "r") as f:
     reader = csv.DictReader(f)
     # Start at two because problemati columns is the position of the row in the csv file, 
