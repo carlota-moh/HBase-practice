@@ -91,9 +91,13 @@ def load_csv_to_hbase(table, filepath, columns, batch_size):
     df_iterator = pd.read_csv(filepath, usecols=columns, chunksize=batch_size)
     for df in df_iterator:
         # Columns formatting
+        # for col in ["Month", "DayofMonth"]:
+        #     df[col] = df[col].astype(str)
+        #     df[col] = np.where(len(df[col])==1, str(0)+df[col], df[col])
+
         for col in ["Month", "DayofMonth"]:
             df[col] = df[col].astype(str)
-            df[col] = np.where(len(df[col])==1, str(0)+df[col], df[col])
+            df[col] = [str(0)+val if len(val) == 1 else val for val in df[col]]
         
         # Create column for RowKey
         df['Year'] = df['Year'].astype(str)
