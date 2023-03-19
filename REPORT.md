@@ -61,7 +61,21 @@ Una vez hecho esto, procedemos a instalar la librería de `happybase`:
 pip install happybase
 ```
 
-Finalmente, ejecutamos el script `1-airports.py` para poder realizar la carga de datos a la tabla recién creada. Tras ello, es necesario acceder a la shell de HBase (`hbase shell`) y ejecutar un scan de la tabla:
+Finalmente, ejecutamos el script `1-airports.py` para poder realizar la carga de datos a la tabla recién creada. En nuestro primer intento de realizar la carga de datos, vimos que la librería `pandas` no estaba siendo capaz de parsear los datos correctamente a la hora de cargarlos en un DataFrame, por lo que dedujimos que había algo dentro del csv original que estaba impidiendo el correcto parseo de los registros. Para poder detectar las líneas mal formateadas dentro de los ficheros, empleamos el siguiente comando en python:
+
+```python
+df = pd.read_csv(filepath, sep=',', error_bad_lines=False)
+```
+
+Donde `filepath` refiere a la ruta del fichero `airports.csv` a cargar. Ejecutando este comando pudimos recuperar el número correspondiente a los registros que parecen estar dando error. Podemos inspeccionar algunos de ellos mediante el comando:
+
+```bash
+awk -F',' 'NR == 303' /tmp/nosql/airData/airports.csv
+```
+
+Podemos comprobar que el problema con estas filas es que el campo correspondiente a `city` que tratamos de cargar en el fichero posee un valor separado por comas. Por ello, cuando `pandas` trata de pasar el contenido a un DataFrame, se encuentra con que en estos registros hay 8 campos a cargar en vez de 7 (al interpretar que el valor de `city` son dos campos diferentes), lo cual causa errores en estos registros. Como el número de aeropuertos es limitado y es poco probable que se creen nuevos aeropuertos en un futuro cercano, se propone realizar el cambio de estos registros a mano para poder introducirlos en la tabla. Sin embargo, es algo a tener en cuenta en caso de que se vayan a seguir introduciendo datos de cara a futuro.
+
+Una vez corregido este fallo, procedemos a ejecutar el script de nuevo. Tras ello, es necesario acceder a la shell de HBase (`hbase shell`) y ejecutar un scan de la tabla:
 
 ```bash
 scan 'airdata_425:airports', {LIMIT => 3}
