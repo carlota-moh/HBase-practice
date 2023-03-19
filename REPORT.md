@@ -177,11 +177,10 @@ count 'airdata_425:flights', { INTERVAL => 100000, CACHE => 10000 }
 El uso de los parámetros `INTERVAL` y `CACHE` nos permite realizar un uso eficiente de los recursos para agilizar el conteo de los registros, lo cual es importante en este caso, donde queremos comprobar un gran número de los mismos. Podemos comprobar que hay un total de 486 registros. Podemos comprobar si esto se corresponde con el número de días de los ficheros `2007.csv` y `2008.csv` mediante los siguientes comandos:
 
 ```bash
-cut -d ',' -f1-3 /tmp/nosql/airData/2007.csv | sort | uniq | wc -l
-
-cut -d ',' -f1-3 /tmp/nosql/airData/2008.csv | sort | uniq | wc -l
+cut -d ',' -f1-3 /tmp/nosql/airData/2007.csv /tmp/nosql/airData/2008.csv | sort | uniq | wc -l
 ```
-Si sumamos los resultados (366 y 122) y restamos los headers obtenemos un total de 486 registros.
+
+Obtenemos un total de 487 líneas, lo cual (tras restar la línea correspondiente al header de los ficheros)  se corresponde con el número de registros cargados en la tabla.
 
 Comprobamos de igual forma que se pueden llevar a cabo las búsquedas tal y como se especifica en el ejercicio:
 
