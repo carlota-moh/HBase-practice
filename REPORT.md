@@ -197,3 +197,67 @@ scan 'airdata_425:flights', { ROWPREFIXFILTER => '200804'}
 
 Podemos comprobar que ambos comandos devuelven los resultados esperados. En el primer caso, obtenemos los registros correspondientes a una única row-key, mientras que en el segundo obtenemos todos los registros correspondientes a un año y mes específicos. 
 
+## Ejercicio 3
+
+**Consulta de rutas: Dado un par origen-destino, se debe obtener el siguiente detalle:**  
+
+**1. Duracion promedio del vuelo para esta ruta.**
+**2. Nombre de la aerolinea que ofrece dicha ruta, media de retraso en la hora de salida, media de retraso en la hora de llegada.**
+**3. Los resultados deben devolverse ordenados de forma que las aerolíneas que vuelan con mas frecuencia la ruta, aparezcan en primer lugar.**
+**4. Como extra sería interesante obtener el modelo de aeronave más usado por la aerolínea para dicha ruta.**
+
+En este caso, el ejercicio no nos pide cargar datos que se encuentren directamente reflejados dentro de los ficheros, sino que es necesario realizar una serie de consultas de agregación de los diferentes campos para poder alcanzar un DataFrame final que cargar dentro de la tabla de HBase. Estos agregados se calculan mediante diferentes funciones de agregación que pueden encontrarse reflejadas dentro del script de carga de datos (`3-aggregates.py`).
+
+Para esta tabla decidimos realizar la carga de datos utilizando el par origen-destino como row-key, con el fin de facilitar la búsqueda dentro de la tabla. De esta forma, la búsqueda se puede realizar de manera eficiente por este campo y podemos cargar la información de cada uno de los registros unívocos dentro de un qualifier perteneciente a una única column family. De forma análoga al ejercicio anterior, la unicidad del registro no se garantiza a nivel de row-key, sino a nivel de qualifier. Inicialmente pensamos en realizar el diseño de este qualifier empleando la aerolínea como identificador único, de modo que introdujéramos la información en forma de JSON. Adicionalmente, pensamos emplear una column family diferente para introducir la información correspondiente a la duración media del vuelo, común para cada una de las rutas, de forma que sólo tuviéramos que introducir esta información una vez por cada una de las rutas. 
+
+Sin embargo, esta aproximación presenta dos problemas principales. En primer lugar, no nos permite aplicar la ordenación pedida por el ejercicio, puesto que, a pesar de que hicimos esfuerzos para realizar una carga ordenada de los datos en función del número de vuelos de cada una de las aerolíneas, esta ordenación no se veía reflejada a la hora de devolver el resultado. El motivo de esto es que la ordenación de HBase siempre es de forma lexicográfica, sin tener en cuenta el timestamp de carga de los datos. En segundo lugar, el uso de dos column families diferentes acaba por resultar ineficiente e innecesario, puesto que no existe una diferencia tan significativa en el tipo de dato a cargar como para justificar el uso de dos familias de columnas diferentes. Es por ello que decidimos utilizar unu código numérico para realizar la identificación del registro que correlacionase con el ranking de las aerolíneas en función del número de vuelos realizados en esa ruta en particular. Inicialmente planteamos el uso de un único dígito para la ordenación (1,2...10,11...n), pero pronto comprobamos que HBase no tiene en cuenta la ordenación numérica de los dígitos, sino su ordenación lexicográfica. Esto implica que, en el caso de que hubiera más de 9 aerolíneas, el orden lógico de los resultados se volvería confuso, ya que la segunda aerolínea en ser devuelta en la búsqueda no sería aquella que tuviera el número 2, sino el número 10. Por tanto, tuvimos que buscar una aproximación alternativa, basada en el uso de un código de 5 cifras, donde las cifras vacías fueran sustituidas por un 0. De este modo, la ordenación tendría el aspecto de: 00001, 00002 ... 00010, 00011 ..., solucionando el problema anteriormente planteado. Aunque el número pueda parecer exagerado, de cara a futuro consideramos que emplear un número amplio de cifras para la ordenación puede permitirnos escalar de manera sencilla la carga de datos, puesto que el límite de compañias aéreas que podríamos cubrir en una misma ruta es virtualmente inalcanzable.
+
+Por otra parte, nos dimos cuenta de que para poder cargar los datos de la duración media de vuelo dentro de esta misma column family deberíamos incluir su clave dentro de la lógica de ordenación anteriormente planteada, no solo por consistencia de formato sino para asegurar que no haya problemas en la ordenación de registros de las aerolíneas. Por ello, decidimos cargar este dato bajo el qualifier `99999`, de forma que siempre aparezca como el último campo devuelto al buscar cada una de las rutas. 
+
+Igual que en los ejercicios anteriores, creamos la tabla mediante el comando:
+
+```bash
+create 'airdata_425:routes', 'C'
+```
+
+Comprobamos que se ha creado correctamente:
+
+```bash
+list_namespace_tables 'airdata_425'
+```
+
+A continuación, procedemos a realizar la carga de datos mediante la ejecución del script `3-routes.py`, donde se ejecutan las operaciones necesarias para el cálculo de los agregados y se cargan los mismos dentro de la tabla anteriormente creada en HBase. 
+
+Realizamos finalmente las comprobaciones oportunas para ver que la estructura es conforme a la que buscamos:
+
+```bash
+# Mostrar primeras filas  de la tabla
+scan 'airdata_425:routes', { LIMIT => 10 }
+```
+
+En este caso nos interesa comprobar un número más amplio de registros que en los casos anteriores, para asegurarnos de que en todos los casos la ordenación es correcta, lo cual podemos comprobar visualmente de manera sencilla. 
+
+Igualmente, realizamos un conteo del número de registros en la tabla:
+
+```bash
+# Conteo del número de regitros que contiene la tabla
+count 'airdata_425:routes'
+```
+
+Podemos observar que obtenemos un total de 5609 registros, que deberían corresponderse con el número de pares origen-destino dentro de los ficheros csv cargados. Para comprobarlo, ejecutamos el comando:
+
+```bash
+cut -d ',' -f17-18 /tmp/nosql/airData/2007.csv /tmp/nosql/airData/2008.csv | sort | uniq | wc -l
+```
+
+Con esto, obtenemos un total de 5610 líneas, a las cuales debemos restarle el header, dando un total de 5609, lo que corresponde con el número de registros cargados en la tabla. 
+
+Finalmente, comprobamos que podemos recuperar la información correspondiente a una ruta de manera adecuada:
+
+
+```bash
+# Mostrar la información correspondiente a una ruta
+get 'airdata_425:routes', 'ONTLAS'
+```
+
+Comprobamos que la información puede recuperarse y que la ordenación de los registros devueltos se corresponde con el número de rutas realizadas por cada aerolínea, siendo el último registro la duración media de vuelo.
