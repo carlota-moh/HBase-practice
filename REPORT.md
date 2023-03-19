@@ -77,33 +77,27 @@ Podemos ver que el número de filas (3376) coincide con el número de líneas qu
 
 ## Ejercicio 2
 
-**Consulta de vuelos por mes o día: Posibilidad de obtener los vuelos de aun día o mes específico (YYYYMMDD o YYYYMM).** 
+**Consulta de vuelos por mes o día: Posibilidad de obtener los vuelos de un día o mes específico (YYYYMMDD o YYYYMM).** 
 
 **Como detalle de información se deben obtener siempre todos los siguientes datos: hora de salida, hora de llegada, número de vuelo, origen, destino, número de aeronave y distancia recorrida.**
 
-En este caso, queremos realizar una consulta de vuelos por días o mes específico, por lo que tenemos que idear una clave que sea combinación de las columnas que indican esta información en los `csv` de carga. Sin embargo, se puede comprobar que para un mismo día puede haber varios vuelos diferentes, por lo que no podemos utilizar únicamente esta información como row-key, puesto que nos encontraríamos con registros repetidos que no corresponden a los mismos vuelos. Podemos comprobar que esto es cierto con el siguiente comando en la terminal del `Edge01`:
+En este caso, queremos realizar una consulta de vuelos por días o mes específico, por lo que nuestra primera aproximación al problema fue idear una clave que sea combinación de las columnas que indican esta información en los `csv` de carga, cargando los datos correspondientes a los vuelos como qualifiers dentro de una misma column family. Sin embargo, se puede comprobar que para un mismo día puede haber varios vuelos diferentes, por lo que no podemos utilizar únicamente esta información como row-key, ya que la información de vuelos sucesivos se iría cargando sobre un mismo registro y no de manera separada. Podemos comprobar que esto es cierto con el siguiente comando en la terminal del `Edge01`:
 
 ```bash
 cut -d ',' -f 1,2,3,10 /tmp/nosql/airData/2007.csv | grep '^2007,1,1,[0-9]*$' | wc -l
 ```
 
-Este comando nos permite inspeccionar el fichero de vuelos de `/tmp/nosql/airData/2007.csv` seleccionando únicamente las columnas 1, 2, 3 y 10 (correspondientes al año, mes, día del mes y número de vuelo, respectivamente). En este caso, queremos buscar el número de entradas en el año 2007 para el mes de enero y el día 1. Para ello, empleamos comando `cut` de Linux, donde mediante el parámetro `-d` le especificamos el delimitador del `csv` (en este caso, comas), así como las columnas que queremos (mediante el parámetro `-f`). Sobre el output de este comando, realizamos una búsqueda `grep` para quedarnos con todas las entradas que correspondan al día 1 de enero de 2007, en cualquier número de vuelo. Finalmente, realizamos un `wc` del número de líneas del output del comando, resultando en un total de 19563, lo que nos confirma que no podemos utilizar únicamente la fecha como row-key. 
+Este comando nos permite inspeccionar el fichero de vuelos de `/tmp/nosql/airData/2007.csv` seleccionando únicamente las columnas 1, 2, 3 y 10 (correspondientes al año, mes, día del mes y número de vuelo, respectivamente). En este caso, queremos buscar el número de entradas en el año 2007 para el mes de enero y el día 1. Para ello, empleamos comando `cut` de Linux, donde mediante el parámetro `-d` le especificamos el delimitador del `csv` (en este caso, comas), así como las columnas que queremos (mediante el parámetro `-f`). Sobre el output de este comando, realizamos una búsqueda `grep` para quedarnos con todas las entradas que correspondan al día 1 de enero de 2007, en cualquier número de vuelo. Finalmente, realizamos un `wc -l` para obtener el número de líneas del output del comando, resultando en un total de 19563. Esto nos confirma que no podemos utilizar esta aproximación para el diseño de nuestra carga de datos. 
 
-Una potencial aproximación para intentar resolver este problema es comprobar si en cada día el `id` del vuelo es un identificador único. Esto podría ayudarnos, ya que lo único que tendríamos que hacer es utilizar la información de la fecha como prefijo para la row-key y emplear el campo correspondiente al número de vuelo para hacer que el registro sea único. Para comprobar nuestra hipótesis, podemos utilizar un comando similar al anterior, pero indicando que se muestre el número de registros únicos, para lo cual es necesario añadir el comando `uniq` antes de hacer `wc -l`:
-
-```bash
-cut -d ',' -f 1,2,3,10 /tmp/nosql/airData/2007.csv | grep '^2007,1,1,[0-9]*$' | uniq | wc -l
-```
-
-Podemos observar que se obtiene un total de 17604, lo que nos indica que no podemos identificar un vuelo de forma unívoca haciendo uso únicamente del año, mes, día y número de vuelo. Con el siguiente comando se muestra aquellas combinaciones de año, mes, día y número de vuelo que tienen más de una coincidencia en el fichero `csv` de carga:
+La segunda potencial aproximación para tratar resolver este problema es comprobar si en cada día el `id` del vuelo es un identificador único. Esto podría ayudarnos, ya que lo único que tendríamos que hacer es utilizar la información de la fecha como prefijo para la row-key y emplear el campo correspondiente al número de vuelo para hacer que el registro sea único. Para comprobar nuestra hipótesis, podemos utilizar el siguiente comando, que muestra aquellas combinaciones de año, mes, día y número de vuelo que tienen más de una coincidencia en el fichero `csv` de carga:
 
 ```bash
-cut -d ',' -f 1,2,3,10 /tmp/nosql/airData/2007.csv | grep '^2007,1,1,[0-9]*$' | uniq -c | grep -v '^ *1'
+cut -d ',' -f 1,2,3,10 /tmp/nosql/airData/2007.csv | grep '^2007,1,1,[0-9]*$' | uniq -c | grep -v '^ *1' | wc -l
 ```
 
-Donde el comando `grep -v '^ *1'` indica que se muestren aquellos registros que no empiecen por 1.
+Donde el comando `grep -v '^ *1'` indica que se muestren aquellos registros que no empiecen por 1. Tras ejecutar el comando, obtenemos un total de 1897 registros, lo que nos indica que no podemos identificar un vuelo de forma unívoca haciendo uso únicamente del año, mes, día y número de vuelo. 
 
-Por ejemplo, si se selecciona específicamente un número de vuelo (en este caso se ha escogido el vuelo 2891, pero podría ser cualquier otro que tuviera más de una coincidencia el fichero `csv` de carga):
+Tomando un ejemplo concreto, podemos seleccionar específicamente un número de vuelo (en este caso se ha escogido el vuelo 2891, pero podría ser cualquier otro que tuviera más de una coincidencia el fichero `csv` de carga):
 
 ```bash
 cut -d ',' -f 1,2,3,10 /tmp/nosql/airData/2007.csv | grep '^2007,1,1,2891$' | wc -l
@@ -117,7 +111,7 @@ egrep '^2007,1,1,[0-9,]*([A-Z]){2},2891' /tmp/nosql/airData/2007.csv
 
 Con este comando podemos encontrar todas las entradas correspondientes al vuelo 2891 en el día 1 de enero de 2007. Podemos comprobar que aparecen dos entradas diferentes, puesto que se trata de un vuelo que fue desde Sacramento (SMF) hasta Los Angeles (ONT) y, tras una escala, se desplazó desde Los Angeles hasta Las Vegas (LAS). La inspección más detallada de las horas de aterrizaje de la primera entrada (13:41) y la hora de despegue de la segunda entrada (14:08) parecen corroborar nuestra hipótesis.
 
-Con esta información en mente, se propone el diseño de una nueva clave que permita identificar registros de forma unívoca, es decir, que al hacer el conteo del número de registros únicos se obtenga el mismo valor que al hacer el conteo del número de registros totales. Tras analizar en detalle diferentes posibilidades, se ha decidido hacer uso de una clave que incluya la siguiente información:
+Con esta información en mente, llegamos a la conclusión de que el diseño de una nueva clave que permita identificar registros de forma unívoca necesitaŕía incluir la siguiente información:
 
 - Año del vuelo (`YYYY`)
 - Mes del vuelo (`MM`)
@@ -127,34 +121,35 @@ Con esta información en mente, se propone el diseño de una nueva clave que per
 - Origen (`Origin`)
 - Destino (`Dest`)
 
-Pese a ello, si se ejecutan los dos siguientes comandos:
+Sin embargo, el diseño de esta clave es sumamente ineficiente, puesto que requiere de almacenar en disco una gran cantidad de información para cada una de las row-keys, la cual, de manera adicional, estaría almacenada dentro de las propias columnas de cada uno de los registros. Es por ello que esta aproximación se vuelve inviable.
 
-```bash
-# Mostrar número de líneas totales del fichero
-wc -l /tmp/nosql/airData/2007.csv
+Por ello, se propone una nueva aproximación al problema: utilizar la información de año, mes y día de vuelo como row-key pero cargando cada registro como una nuevo qualifier dentro de una misma column family, donde el nombre del qualifier será un identificador único de registro y el valor asociado al mismo será un JSON con la información correspondiente. De este modo, seguimods garantizando que el campo de consulta de información sea la row-key, garantizando una mayor eficiencia en las consultas, además de ahorrar espacio en disco al evitar la duplicidad de información entre row-key y las columnas de la tabla.
+
+A la hora de realizar el diseño del qualifier, se propone una combinación de los siguientes campos:
+
+- Compañía (`UniqueCarrier`)
+- Número de vuelo (`FlightNum`)
+- Origen (`Origin`)
+- Destino (`Dest`)
+
+Por otra parte, el JSON a cargar como valor dentro dentro de cada columna posee la siguiente información:
+
+```python
+json = {
+        "DepTime": DepTime,
+        "ArrTime": ArrTime,
+        "FlightNum": FlightNum,
+        "Origin": Origin,
+        "Dest": Dest,
+        "TailNum": TailNum,
+        "Distance": Distance 
+    }
 ```
-
-```bash
-# Número de registros únicos teniendo en cuenta los campos usados como row-key
-cut -d ',' -f 1,2,3,9,10,17,18 /tmp/nosql/airData/2007.csv | uniq | wc -l
-```
-
-Podemos comprobar que no se obtiene el mismo resultados (7453216 en el primero y 7453186 en el segundo). Si analizamos más en detalle los para que casos hay registros repetidos:
-
-```bash
-cut -d ',' -f 1,2,3,9,10,17,18 /tmp/nosql/airData/2007.csv | uniq -c | grep -v '^ *1'
-```
-
-Podemos comprobar, si se analiza en detalle dichos casos, que se tratan de registros duplicados (es decir, registros que contienen exactamente la misma información). Por ello, podemos considerar la row-key propuesta como una opción válida en cuanto a que permite identificar registros de forma unívoca, pero tendremos que omitir los regitros duplicados cuando los datos se inserten en la tabla de HBase.
-
-Otro potencial problema a tener en cuenta es que la longitud de la clave compuesta resultante es bastante elevado, puesto que se tiene que incluir información de varios campos para conseguir una clave única, lo que supone un consumo adicional de espacio de escritura en disco. Adicionalmente, los resultados se devolverán ordenados en función de estos campos: primero por año, después por mes, después por día, etc., por lo que si quisiéramos aplicar una ordenación diferente tendríamos que diseñar una clave distinta. Sin embargo, dado que no se tiene información adicional de cómo debe ser el orden de los resultados devueltos, se utilizará esta aproximación.
-
-Una vez definido el tipo de clave a emplear se debe decidir el número de column families que se necesitan para poder almacenar la información de las entradas. Como en este caso se indica que siempre se desea acceder a todos los campos, lo más óptimo es emplear una única column family, de modo que se pueda realizar una búsqueda por column family de forma directa para obtener la información de todas las columnas.
 
 Se procede por tanto a crear la nueva tabla dentro del namespace previamente definido:
 
 ```bash
-create 'airdata_425:flights', 'info'
+create 'airdata_425:flights', 'F'
 ```
 
 Comprobamos que se ha creado correctamente:
@@ -163,14 +158,42 @@ Comprobamos que se ha creado correctamente:
 list_namespace_tables 'airdata_425'
 ```
 
-A continuación, se procede a ejecutar el script `flights.py`, de manera similar a como lo hicimos en el ejercicio 1 (activando el entorno de `conda` previo a realizar la ejecución del script desde el nodo `Edge01`). Tras ello, se realizan las comprobaciones oportunas para ver que los datos se han insertado correctamente en nuestra tabla:
+A continuación, se procede a ejecutar el script `2-flights.py`, de manera similar a como lo hicimos en el ejercicio 1 (activando el entorno de `conda` previo a realizar la ejecución del script desde el nodo `Edge01`). A diferencia del caso anterior, donde (debido al número reducido de registros a cargar), realizamos una carga de registros uno a uno, en este caso hemos optado por realizar una carga en `batch`. Esto permite reducir significativamente el tiempo de carga de datos, lo cual es de suma importancia en este caso, donde hay un total de casi 10 millones de registros a cargar. Además, la ventaja adicional que presenta esta aproximación es que es altamente escalable y nos permite seguir insertando un gran número de registros en poco tiempo y sin necesidad de modificar el código. 
+
+Tras ejecutar el script, se realizan las comprobaciones oportunas para ver que los datos se han insertado correctamente en nuestra tabla:
 
 ```bash
-# Mostrar primeras filas de la tabla
-scan 'airdata_425:flights', {LIMIT => 3}
+# Mostrar primera fila de la tabla
+scan 'airdata_425:flights', { LIMIT => 1 }
 ```
+
+Con esto podemos comprobar que los registros dentro de la tabla tienen la estructura anteriormente definida, utilizando la fecha del vuelo como row-key, un identificador único de registro como qualifier y un JSON con la información correspondiente a dicho registro como valor. 
 
 ```bash
 # Conteo del número de regitros que contiene la tabla
-count 'airdata_425:flights'
+count 'airdata_425:flights', { INTERVAL => 100000, CACHE => 10000 }
 ```
+
+El uso de los parámetros `INTERVAL` y `CACHE` nos permite realizar un uso eficiente de los recursos para agilizar el conteo de los registros, lo cual es importante en este caso, donde queremos comprobar un gran número de los mismos. Podemos comprobar que hay un total de 486 registros. Podemos comprobar si esto se corresponde con el número de días de los ficheros `2007.csv` y `2008.csv` mediante los siguientes comandos:
+
+```bash
+cut -d ',' -f1-3 /tmp/nosql/airData/2007.csv | sort | uniq | wc -l
+
+cut -d ',' -f1-3 /tmp/nosql/airData/2008.csv | sort | uniq | wc -l
+```
+Si sumamos los resultados (366 y 122) y restamos los headers obtenemos un total de 486 registros.
+
+Comprobamos de igual forma que se pueden llevar a cabo las búsquedas tal y como se especifica en el ejercicio:
+
+```bash
+# Mostrar el registro correspondiente al 2 de enero de 2007
+scan 'airdata_425:flights', { ROWPREFIXFILTER => '20070102'}
+```
+
+```bash
+# Mostrar los registros correspondientes a abril de 2008
+scan 'airdata_425:flights', { ROWPREFIXFILTER => '200804'}
+```
+
+Podemos comprobar que ambos comandos devuelven los resultados esperados. En el primer caso, obtenemos los registros correspondientes a una única row-key, mientras que en el segundo obtenemos todos los registros correspondientes a un año y mes específicos. 
+
