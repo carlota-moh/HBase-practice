@@ -23,12 +23,12 @@ list_namespace 'airdata_425'
 
 En este caso, dado que la consulta más eficiente es mediante row-key, hemos decidido utilizar el código del aeropuerto como clave, aprovechando que se trata de un campo único para cada uno de los aeropuertos, además de que se encuentra ya establecido como una columna dentro del fichero `/tmp/nosql/airData/airports.csv`.
 
-Aunque el resto de atributos podrían organizarse en múltiples column families diferentes, hemos decidido emplear una única column family. Esto se debe a que el número de qualifiers diferentes que vayan a estar presentes dentro de los datos es conocido y constante, además de que probablemente ello nos facilite la carga de datos.
+Aunque el resto de atributos podrían organizarse en múltiples column families diferentes, hemos decidido emplear una única column family, guardando los diferentes campos de información como qualifiers diferentes dentro de la misma. Esto se debe a que el número de qualifiers diferentes que vayan a estar presentes dentro de los datos es conocido y constante, además de que probablemente ello nos facilite la carga de datos, puesto que se trata de columnas dentro del csv que podemos cargar directamente. 
 
 Para crear la tabla utilizamos el siguiente comando:
 
 ```bash
-create 'airdata_425:airports', 'info'
+create 'airdata_425:airports', 'I'
 ```
 
 Comprobamos que se ha creado correctamente:
@@ -37,7 +37,7 @@ Comprobamos que se ha creado correctamente:
 list_namespace_tables 'airdata_425'
 ```
 
-Una vez creada la tabla procedemos a realizar la carga de datos desde`/tmp/nosql/airData/airports.csv`. Para ello, utilizaremos el código de Python provisto en el script `airports.py`. Con el fin de poder ejecutar de manera limpia los scripts desde el nodo `Edge01`, así como evitar conflictos de dependencias, hemos creado un entorno en `conda` mediante el comando:
+Una vez creada la tabla procedemos a realizar la carga de datos desde`/tmp/nosql/airData/airports.csv`. Para ello, utilizaremos el código de Python provisto en el script `1-airports.py`. Con el fin de poder ejecutar de manera limpia los scripts desde el nodo `Edge01`, así como evitar conflictos de dependencias, hemos creado un entorno en `conda` mediante el comando:
 
 ```bash
 /opt/miniconda3/bin/conda create -n env_name python=3.8
@@ -49,7 +49,7 @@ Para poder ejecutar este entorno es necesario realizar un paso previo de inicial
 /opt/miniconda3/bin/conda
 ```
 
-Tras cerrar la terminal para poder aplicar los cambios, volvemos a conectarnos al `Edge01` y observamos que en la consola aparece activado el entorno base de `conda`. Podemos ahora activar nuestro entorno personal mediante el comando que se muestra a continuación:
+Tras cerrar la terminal para poder aplicar los cambios, volvemos a conectarnos al `Edge01` y observamos que en la consola aparece activado el entorno `base` de `conda`. Podemos ahora activar nuestro entorno personal mediante el comando que se muestra a continuación:
 
 ```bash
 conda activate env_name
@@ -61,7 +61,7 @@ Una vez hecho esto, procedemos a instalar la librería de `happybase`:
 pip install happybase
 ```
 
-Finalmente, ejecutamos el script `airports.py` para poder realizar la carga de datos a la tabla recién creada. Tras ello, es necesario acceder a la shell de HBase (`hbase shell`) y ejecutar un scan de la tabla:
+Finalmente, ejecutamos el script `1-airports.py` para poder realizar la carga de datos a la tabla recién creada. Tras ello, es necesario acceder a la shell de HBase (`hbase shell`) y ejecutar un scan de la tabla:
 
 ```bash
 scan 'airdata_425:airports', {LIMIT => 3}
